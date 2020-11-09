@@ -1,3 +1,36 @@
+import socket
+
+VERSION = "1.0"
+LOCALHOST = "127.0.0.1"
+SERVER_ADDR = (LOCALHOST, 7734)
+END_DELIMITER = "\&!"
+
+PHRASES = {"200": "OK", "400": "BAD REQUEST",
+           "404": "NOT FOUND", "505": "P2P-CI VERSION NOT SUPPORTED"}
+
+
+def receive_request(socket_):
+    raw_request = socket_.recv(1024).decode("utf-8")
+    if raw_request is None or not raw_request.strip():
+        return ""
+    end_index = raw_request.find(END_DELIMITER)
+    end_index = len(raw_request) if end_index == -1 else end_index
+    request = raw_request[:end_index]
+    return request
+
+
+def send_response(socket_, response_code, response_message=""):
+    response = "P2P-CI/" + VERSION + " " + \
+        response_code + " " + PHRASES[response_code] + "\n"
+    response += response_message
+    print("\n\n***Sending Response***\n" + response + "\n\n")
+    response += END_DELIMITER
+    try:
+        socket_.send(response.encode())
+    except socket.error as message:
+        print("Error occurred while sending response: " + str(message))
+
+
 class Peer(object):
     """
     A Peer is an active peer that is alive and connected to the server

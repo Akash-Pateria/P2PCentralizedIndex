@@ -2,11 +2,8 @@ import sys
 import os
 import socket
 import threading
-from base import Peer, RFC, DataStoreSingleton
-
-END_DELIMITER = "\&!"
-MY_ADDR = ("127.0.0.1", 7734)
-VERSION = "1.0"
+from base import Peer, RFC, DataStoreSingleton, VERSION, SERVER_ADDR, END_DELIMITER, PHRASES
+from base import receive_request, send_response
 
 ADD = "ADD"
 LOOKUP = "LOOKUP"
@@ -15,45 +12,22 @@ LEAVE = "LEAVE"
 ALLOWED_OPERATIONS = (
     ADD, LOOKUP, LIST, LEAVE,
 )
-PHRASES = {"200": "OK", "400": "BAD REQUEST",
-           "404": "NOT FOUND", "505": "P2P-CI VERSION NOT SUPPORTED"}
 
 data_store = DataStoreSingleton.get_instance()
 
 
-def spawn_worker(socket_):
+def spawn_worker(socket_, addr):
     with socket_:
         print("Connected to", addr)
         while True:
             request = receive_request(socket_)
             if not request:
                 print("Terminating connection", addr)
+                # TODO: serve_leave(socket_)
                 break
             print("\n\n***Received Request***\n" + request + "\n\n")
             parse_request(socket_, request)
     socket_.close()
-
-
-def receive_request(socket_):
-    raw_request = socket_.recv(1024).decode("utf-8")
-    if raw_request is None or not raw_request.strip():
-        return ""
-    end_index = raw_request.find(END_DELIMITER)
-    end_index = len(raw_request) if end_index == -1 else end_index
-    request = raw_request[:end_index]
-    return request
-
-
-def send_response(socket_, response_code, response_message=""):
-    response = "P2P-CI/" + VERSION + " " + \
-        response_code + " " + PHRASES[response_code] + "\n"
-    response += response_message
-    print("\n\n***Sending Response***\n" + response + "\n\n")
-    response += END_DELIMITER
-    try:
-        socket_.send(response.encode())
-    except socket.error as message:
-        print("Error occurred while sending response: " + str(message))
 
 
 def parse_request(socket_, response):
@@ -151,18 +125,18 @@ def serve_leave(socket_, version_str, hostname, upload_port):
 if __name__ == "__main__":
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as skt:
         try:
-            skt.bind(MY_ADDR)
+            skt.bind(SERVER_ADDR)
         except socket.error as message:
             print("Error occurred while binding socket: " + str(message))
 
         try:
-            print("Accepting connections on port " + str(MY_ADDR[1]))
+            print("Accepting connections on port " + str(SERVER_ADDR[1]))
             while True:
                 skt.listen()
                 conn, addr = skt.accept()
 
                 client_thread = threading.Thread(
-                    target=spawn_worker, args=(conn,))
+                    target=spawn_worker, args=(conn, addr))
                 # client_thread.daemon = True
                 client_thread.start()
 
